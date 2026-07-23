@@ -737,7 +737,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Row(
               children: [
                 Icon(
-                  Icons.smart_toy_rounded,
+                  Icons.lens,
                   color: Theme.of(context).primaryColor,
                   size: 26,
                 ),
@@ -1265,7 +1265,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildInputBar(bool isDark) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 44),
       decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [

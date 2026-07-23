@@ -605,7 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 decoration: _buildInputDecoration(
                   labelText: 'Model',
                   hintText: 'deepseek-chat',
-                  prefixIcon: const Icon(Icons.smart_toy_rounded, size: 18),
+                  prefixIcon: const Icon(Icons.lens, size: 18),
                   suffixIcon: _isFetchingModels
                       ? const Padding(
                           padding: EdgeInsets.all(14),
@@ -896,57 +896,6 @@ class _SettingsScreenState extends State<SettingsScreen>
             ],
           ),
 
-          // 9. About / Links Card
-          _buildSettingsCard(
-            icon: Icons.info_outline_rounded,
-            title: 'About MobileUse Agent',
-            subtitle: 'Built by Eburon AI · resources and repository access',
-            isDark: isDark,
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Project Repository'),
-                subtitle: const Text('View source code on GitHub'),
-                leading: const Icon(Icons.code_rounded),
-                onTap: () {
-                  launchUrl(
-                    Uri.parse('https://github.com/orailnoor/private-agent'),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Orailnoor on YouTube'),
-                subtitle: const Text('Subscribe for tutorials and updates'),
-                leading: const Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: Colors.red,
-                ),
-                onTap: () {
-                  launchUrl(
-                    Uri.parse('https://www.youtube.com/orailnoor'),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Tech Jarves on YouTube'),
-                subtitle: const Text('Subscribe for tutorials and updates'),
-                leading: const Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: Colors.red,
-                ),
-                onTap: () {
-                  launchUrl(
-                    Uri.parse('https://www.youtube.com/techjarves'),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-              ),
-            ],
-          ),
         ],
       ),
     );

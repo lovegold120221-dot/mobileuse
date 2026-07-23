@@ -169,6 +169,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       } else if (provider == 'ollama') {
         _baseUrlController.text = 'http://10.0.2.2:11434/v1';
         _modelController.text = 'gemma2';
+      } else if (provider == 'ollama_cloud') {
+        _baseUrlController.text = 'https://ollama.com/v1';
+        _modelController.text = 'gemma3:4b';
+      } else if (provider == 'opencode') {
+        _baseUrlController.text = AiService.opencodeBaseUrl;
+        _modelController.text = AiService.opencodeDefaultModel;
+      } else if (provider == 'gemini') {
+        _baseUrlController.text = AiService.geminiBaseUrl;
+        _modelController.text = AiService.geminiDefaultModel;
       } else if (provider == 'local') {
         _baseUrlController.text = 'http://10.0.2.2:1234/v1';
         _modelController.text = 'qwen2.5-7b-instruct';
@@ -198,7 +207,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
 
     if (_selectedProvider != 'ollama' &&
+        _selectedProvider != 'ollama_cloud' &&
         _selectedProvider != 'local' &&
+        _selectedProvider != 'opencode' &&
         apiKey.isEmpty) {
       setState(() {
         _validationError = 'API Key is required for this provider.';
@@ -211,6 +222,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       final models = await _aiService.fetchAvailableModels(baseUrl, apiKey);
       if (models.isNotEmpty ||
           _selectedProvider == 'ollama' ||
+          _selectedProvider == 'ollama_cloud' ||
+          _selectedProvider == 'opencode' ||
+          _selectedProvider == 'gemini' ||
           _selectedProvider == 'local') {
         await _aiService.saveSettings(
           apiKey: apiKey,
@@ -625,7 +639,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                 ),
                 child: Icon(
-                  Icons.smart_toy_rounded,
+                  Icons.lens,
                   size: 70,
                   color: Theme.of(context).primaryColor,
                 ),
@@ -1142,6 +1156,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   'ollama',
                   'Ollama',
                   Icons.computer_rounded,
+                  isDark,
+                ),
+                const SizedBox(width: 10),
+                _buildProviderCard(
+                  'ollama_cloud',
+                  'Ollama Cloud',
+                  Icons.cloud_rounded,
+                  isDark,
+                ),
+                const SizedBox(width: 10),
+                _buildProviderCard(
+                  'opencode',
+                  'OpenCode',
+                  Icons.terminal_rounded,
+                  isDark,
+                ),
+                const SizedBox(width: 10),
+                _buildProviderCard(
+                  'gemini',
+                  'Gemini',
+                  Icons.auto_awesome,
                   isDark,
                 ),
                 const SizedBox(width: 10),
