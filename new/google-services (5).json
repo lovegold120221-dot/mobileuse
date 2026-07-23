@@ -1,0 +1,99 @@
+{
+  "project_info": {
+    "project_number": "112636717363",
+    "firebase_url": "https://beatrice-os-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "beatrice-os",
+    "storage_bucket": "beatrice-os.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:112636717363:android:cba0fda13eac5393b93646",
+        "android_client_info": {
+          "package_name": "ai.eburon.beatrice"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "112636717363-sti9s99qikohg1u2j5ftqvitd2eh9etb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.eburon.beatrice",
+            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
+          }
+        },
+        {
+          "client_id": "112636717363-jgd57g5jfh0kcdmnk0h45v7co5djg6p1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDT_MKJU2e0KcoMwsLUWMsKwV24Mur632U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "112304962744027311677",
+              "client_type": 3
+            },
+            {
+              "client_id": "112636717363-tdq97ep0u5g4mqeeqpg0hulpvra394lh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "ai.eburon.beatrice"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:112636717363:android:eb0748319f70e11bb93646",
+        "android_client_info": {
+          "package_name": "ai.eburon.beatriceos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "112636717363-u1b7clb4cvk3f8k646f7sehej8s0vbku.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.eburon.beatriceos",
+            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
+          }
+        },
+        {
+          "client_id": "112636717363-jgd57g5jfh0kcdmnk0h45v7co5djg6p1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDT_MKJU2e0KcoMwsLUWMsKwV24Mur632U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "112304962744027311677",
+              "client_type": 3
+            },
+            {
+              "client_id": "112636717363-tdq97ep0u5g4mqeeqpg0hulpvra394lh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "ai.eburon.beatrice"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
