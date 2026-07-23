@@ -53,6 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   String _geminiVoiceName = 'Aoede';
   final TextEditingController _geminiSampleRateController =
       TextEditingController(text: '24000');
+  final TextEditingController _geminiApiKeyController = TextEditingController();
 
   static const List<String> _opencodeZenFreeModels = [
     'Big Pickle Free',
@@ -108,6 +109,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _geminiVoiceName = prefs.getString('gemini_voice_name') ?? 'Aoede';
     final rate = prefs.getString('gemini_output_sample_rate') ?? '24000';
     _geminiSampleRateController.text = rate;
+    _geminiApiKeyController.text = prefs.getString('gemini_api_key') ?? '';
   }
 
   Future<void> _checkOverlayStatus() async {
@@ -133,6 +135,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _baseUrlController.removeListener(_onApiConfigChanged);
     _fetchDebounce?.cancel();
     _geminiSampleRateController.dispose();
+    _geminiApiKeyController.dispose();
     _apiKeyController.dispose();
     _baseUrlController.dispose();
     _modelController.dispose();
@@ -235,7 +238,10 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     setState(() => _isFetchingModels = true);
     try {
-      final models = await widget.aiService.fetchAvailableModels(baseUrl, apiKey);
+      final models = await widget.aiService.fetchAvailableModels(
+        baseUrl,
+        apiKey,
+      );
       if (!mounted) return;
       setState(() {
         _fetchedModels = models;
@@ -527,12 +533,7 @@ ollama serve
           children: [
             const Icon(Icons.terminal_rounded, size: 20),
             const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 16))),
           ],
         ),
         content: SizedBox(
@@ -541,10 +542,14 @@ ollama serve
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9),
+                color: isDark
+                    ? const Color(0xFF0B0F19)
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                  color: isDark
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFE2E8F0),
                 ),
               ),
               child: SelectableText(
@@ -567,9 +572,9 @@ ollama serve
             onPressed: () {
               Clipboard.setData(ClipboardData(text: instructions.trim()));
               onUse();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(snackBarText)),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(snackBarText)));
               Navigator.pop(context);
             },
             child: Text(buttonText),
@@ -578,7 +583,6 @@ ollama serve
       ),
     );
   }
-
 
   Widget _buildLocalModelSelector({
     required String label,
@@ -592,7 +596,7 @@ ollama serve
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
-          value: currentValue.isEmpty ? null : currentValue,
+          initialValue: currentValue.isEmpty ? null : currentValue,
           decoration: _buildInputDecoration(
             labelText: label,
             hintText: hint,
@@ -798,7 +802,10 @@ ollama serve
                     onPressed: _showTermuxOllamaInstructions,
                   ),
                   ActionChip(
-                    label: const Text('OpenCode', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      'OpenCode',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     tooltip: 'OpenCode in Termux proot-distro',
                     onPressed: () {
                       _baseUrlController.text = AiService.opencodeBaseUrl;
@@ -1089,23 +1096,45 @@ ollama serve
             subtitle: 'Voice configuration for Beatrice (Gemini Live API)',
             isDark: isDark,
             children: [
+              TextField(
+                controller: _geminiApiKeyController,
+                decoration: _buildInputDecoration(
+                  labelText: 'Gemini API Key',
+                  hintText: 'AIza...',
+                  prefixIcon: const Icon(Icons.key_rounded, size: 18),
+                ),
+                onChanged: (val) async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('gemini_api_key', val.trim());
+                },
+              ),
+              const SizedBox(height: 12),
               const Text(
                 'Voice',
                 style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _geminiVoiceName,
+                initialValue: _geminiVoiceName,
                 decoration: _buildInputDecoration(
                   labelText: 'Select Voice',
                   hintText: 'Choose a voice',
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'Aoede', child: Text('Aoede (Female)')),
+                  DropdownMenuItem(
+                    value: 'Aoede',
+                    child: Text('Aoede (Female)'),
+                  ),
                   DropdownMenuItem(value: 'Kore', child: Text('Kore (Female)')),
-                  DropdownMenuItem(value: 'Charon', child: Text('Charon (Male)')),
+                  DropdownMenuItem(
+                    value: 'Charon',
+                    child: Text('Charon (Male)'),
+                  ),
                   DropdownMenuItem(value: 'Puck', child: Text('Puck (Male)')),
-                  DropdownMenuItem(value: 'Fenrir', child: Text('Fenrir (Male)')),
+                  DropdownMenuItem(
+                    value: 'Fenrir',
+                    child: Text('Fenrir (Male)'),
+                  ),
                   DropdownMenuItem(value: 'Orus', child: Text('Orus (Male)')),
                 ],
                 onChanged: (val) {
@@ -1244,7 +1273,6 @@ ollama serve
               ),
             ],
           ),
-
         ],
       ),
     );

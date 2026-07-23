@@ -46,6 +46,7 @@ dependencies:
   flutter_overlay_window: ^0.5.0
   flutter_markdown: ^0.7.7+1
   web_socket_channel: ^3.0.0
+  gemini_live: ^2026.7.19
 
 dependency_overrides:
   flutter_overlay_window:

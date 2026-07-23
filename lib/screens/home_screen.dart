@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final AiService _aiService = AiService();
   final ActionHandler _actionHandler = ActionHandler();
   final VoiceService _voiceService = VoiceService();
-  final GeminiLiveService _liveVoice = GeminiLiveService();
+  late final GeminiLiveService _liveVoice;
   final NotificationService _notificationService = NotificationService();
   late final TelegramService _telegramService;
 
@@ -55,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _liveVoice = GeminiLiveService(actionHandler: _actionHandler);
     _telegramService = TelegramService(_actionHandler, _aiService);
     _initServices();
     _startOverlayHistorySync();
@@ -1332,12 +1333,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             isActive: isActive,
             onTap: () async {
               if (isActive) {
-                _stopAgentVoiceSession();
+                await _stopAgentVoiceSession();
               } else {
-                final mic = await Permission.microphone.request();
-                if (mic.isGranted) {
-                  _startAgentVoiceSession();
-                }
+                await _startAgentVoiceSession();
               }
             },
           ),
@@ -1371,39 +1369,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _startAgentVoiceSession() async {
-    await _liveVoice.start();
-    _listenForAgentSpeech();
+    print('[VoiceSession] Starting voice session...');
+    try {
+      if (!await Permission.microphone.isGranted) {
+        print('[VoiceSession] Requesting mic permission...');
+        final mic = await Permission.microphone.request();
+        print('[VoiceSession] Mic permission: ${mic.isGranted}');
+        if (!mic.isGranted) {
+          print('[VoiceSession] Mic permission denied');
+          return;
+        }
+      }
+      print('[VoiceSession] Calling _liveVoice.start()...');
+      await _liveVoice.start();
+      print('[VoiceSession] _liveVoice.start() completed');
+    } catch (e, st) {
+      print('[VoiceSession] ERROR: $e');
+      print('[VoiceSession] STACK: $st');
+    }
   }
 
   Future<void> _stopAgentVoiceSession() async {
-    await _voiceService.stopListening();
     await _liveVoice.stop();
-  }
-
-  Future<void> _listenForAgentSpeech() async {
-    if (_liveVoice.state == LiveVoiceState.idle) return;
-    await _voiceService.startListening(
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 2),
-      onResult: (text) {
-        _liveVoice.onUserText?.call(text);
-        _liveVoice.sendUserText(text);
-      },
-      onDone: () {
-        if (_liveVoice.state != LiveVoiceState.idle) {
-          _listenForAgentSpeech();
-        }
-      },
-    );
   }
 
   Future<void> _sendAgentMessage(String text) async {
     if (text.trim().isEmpty) return;
     _textController.clear();
-    _liveVoice.onUserText?.call(text.trim());
-    if (_liveVoice.state == LiveVoiceState.idle) {
-      await _startAgentVoiceSession();
-    }
     _liveVoice.sendUserText(text.trim());
   }
 

@@ -16,6 +16,10 @@ import android.net.Uri
 import android.media.AudioRecord
 import android.media.AudioFormat
 import android.media.MediaRecorder
+import android.media.AudioTrack
+import android.media.AudioAttributes
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.privateagent/accessibility"
@@ -64,6 +68,13 @@ class MainActivity : FlutterActivity() {
         private var audioEventSink: EventChannel.EventSink? = null
         private var audioRecord: AudioRecord? = null
         @Volatile private var isRecording = false
+
+        // Persistent PCM player used for live voice responses (and Kokoro TTS clips).
+        private val pcmQueue = LinkedBlockingQueue<ByteArray>()
+        private var pcmPlayerThread: Thread? = null
+        private var pcmAudioTrack: AudioTrack? = null
+        @Volatile private var isPcmPlayerActive = false
+        @Volatile private var currentPcmSampleRate = 24000
 
         fun registerAccessibilityChannel(flutterEngine: FlutterEngine, context: android.content.Context) {
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.privateagent/accessibility")
@@ -295,30 +306,7 @@ class MainActivity : FlutterActivity() {
                             try {
                                 val pcmBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
                                 val sampleRate = call.argument<Int>("sampleRate") ?: 24000
-                                val bufferSize = android.media.AudioTrack.getMinBufferSize(
-                                    sampleRate,
-                                    android.media.AudioFormat.CHANNEL_OUT_MONO,
-                                    android.media.AudioFormat.ENCODING_PCM_16BIT
-                                )
-                                val audioTrack = android.media.AudioTrack(
-                                    android.media.AudioAttributes.Builder()
-                                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                                        .build(),
-                                    android.media.AudioFormat.Builder()
-                                        .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
-                                        .setSampleRate(sampleRate)
-                                        .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
-                                        .build(),
-                                    bufferSize.coerceAtLeast(pcmBytes.size),
-                                    android.media.AudioTrack.MODE_STREAM,
-                                    0
-                                )
-                                // Reset + flush so overlapping chunks from the same turn do not
-                                // concatenate with stale data from a previous response.
-                                audioTrack.flush()
-                                audioTrack.write(pcmBytes, 0, pcmBytes.size)
-                                audioTrack.play()
+                                playPcmChunk(pcmBytes, sampleRate)
                                 result.success(true)
                             } catch (e: Exception) {
                                 android.util.Log.e("MobileUseAgent", "playPcmAudio error: ${e.message}")
@@ -326,9 +314,74 @@ class MainActivity : FlutterActivity() {
                             }
                         }
 
+                        "stopPcmAudio" -> {
+                            stopPcmPlayer()
+                            result.success(true)
+                        }
+
                         else -> result.notImplemented()
                     }
                 }
+        }
+
+        private fun playPcmChunk(chunk: ByteArray, sampleRate: Int) {
+            if (pcmAudioTrack == null || currentPcmSampleRate != sampleRate) {
+                stopPcmPlayer()
+                currentPcmSampleRate = sampleRate
+                val bufferSize = AudioTrack.getMinBufferSize(
+                    sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                )
+                pcmAudioTrack = AudioTrack(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build(),
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build(),
+                    bufferSize.coerceAtLeast(4096),
+                    AudioTrack.MODE_STREAM,
+                    0
+                )
+                pcmAudioTrack?.play()
+                startPcmPlayerThread()
+            }
+            pcmQueue.offer(chunk)
+        }
+
+        private fun startPcmPlayerThread() {
+            if (pcmPlayerThread?.isAlive == true) return
+            isPcmPlayerActive = true
+            pcmPlayerThread = Thread {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+                while (isPcmPlayerActive) {
+                    try {
+                        val chunk = pcmQueue.poll(50, TimeUnit.MILLISECONDS)
+                        if (chunk != null) {
+                            pcmAudioTrack?.write(chunk, 0, chunk.size)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MobileUseAgent", "PCM player thread error: ${e.message}")
+                    }
+                }
+            }.apply { start() }
+        }
+
+        private fun stopPcmPlayer() {
+            isPcmPlayerActive = false
+            pcmQueue.clear()
+            pcmPlayerThread?.interrupt()
+            pcmPlayerThread = null
+            pcmAudioTrack?.apply {
+                try { stop() } catch (_: Exception) {}
+                flush()
+                release()
+            }
+            pcmAudioTrack = null
         }
     }
 }
