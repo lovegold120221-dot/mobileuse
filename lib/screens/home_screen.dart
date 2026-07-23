@@ -387,6 +387,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _scrollController.dispose();
     _voiceService.dispose();
     _telegramService.dispose();
+    _liveVoice.dispose();
     super.dispose();
   }
 
@@ -731,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
 
               // Custom Input bar
-              _mode == 'agent' ? _buildVoiceOrb(isDark) : _buildInputBar(isDark),
+              _mode == 'agent' ? _buildAgentControls(isDark) : _buildInputBar(isDark),
             ],
           ),
         ],
@@ -1311,40 +1312,88 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       statusText = 'Connecting...';
     }
 
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: VoiceOrb(
+            state: _liveVoice.state,
+            isActive: isActive,
+            onTap: () async {
+              if (isActive) {
+                _stopAgentVoiceSession();
+              } else {
+                final mic = await Permission.microphone.request();
+                if (mic.isGranted) {
+                  _startAgentVoiceSession();
+                }
+              }
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          statusText,
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAgentControls(bool isDark) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 49),
       decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: VoiceOrb(
-              state: _liveVoice.state,
-              isActive: isActive,
-              onTap: () async {
-                if (isActive) {
-                  _liveVoice.stop();
-                } else {
-                  final mic = await Permission.microphone.request();
-                  if (mic.isGranted) {
-                    _liveVoice.start();
-                  }
-                }
-              },
-            ),
-          ),
+          _buildVoiceOrb(isDark),
           const SizedBox(height: 12),
-          Text(
-            statusText,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          _buildAgentInputBar(isDark),
         ],
       ),
     );
+  }
+
+  Future<void> _startAgentVoiceSession() async {
+    await _liveVoice.start();
+    _listenForAgentSpeech();
+  }
+
+  Future<void> _stopAgentVoiceSession() async {
+    await _voiceService.stopListening();
+    await _liveVoice.stop();
+  }
+
+  Future<void> _listenForAgentSpeech() async {
+    if (_liveVoice.state == LiveVoiceState.idle) return;
+    await _voiceService.startListening(
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 2),
+      onResult: (text) {
+        _liveVoice.onUserText?.call(text);
+        _liveVoice.sendUserText(text);
+      },
+      onDone: () {
+        if (_liveVoice.state != LiveVoiceState.idle) {
+          _listenForAgentSpeech();
+        }
+      },
+    );
+  }
+
+  Future<void> _sendAgentMessage(String text) async {
+    if (text.trim().isEmpty) return;
+    _textController.clear();
+    _liveVoice.onUserText?.call(text.trim());
+    if (_liveVoice.state == LiveVoiceState.idle) {
+      await _startAgentVoiceSession();
+    }
+    _liveVoice.sendUserText(text.trim());
   }
 
   Widget _buildInputBar(bool isDark) {
@@ -1458,6 +1507,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       onPressed: _isLoading
                           ? null
                           : () => _sendMessage(_textController.text),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgentInputBar(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      decoration: const BoxDecoration(color: Colors.transparent),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardTheme.color,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.08),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textController,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Type to Beatrice...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey[600] : Colors.grey[400],
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (text) => _sendAgentMessage(text),
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => _sendAgentMessage(_textController.text),
                     ),
                   ),
                 ],

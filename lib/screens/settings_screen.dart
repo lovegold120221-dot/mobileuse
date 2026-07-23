@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
@@ -395,6 +396,102 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
+  static const _termuxOpenCodeInstructions = r'''
+# Run OpenCode as MobileUse Agent's LLM provider inside Termux
+
+# 1. Install Termux from F-Droid (not Play Store), then update packages:
+apt update && apt upgrade -y
+
+# 2. Install proot-distro and create a Debian/Ubuntu container:
+apt install proot-distro -y
+proot-distro install debian
+
+# 3. Log into the container:
+proot-distro login debian
+
+# 4. Inside the container, install Python + pip and OpenCode:
+apt update && apt install python3 python3-pip -y
+pip3 install opencode-interpreter
+
+# 5. Start the OpenAI-compatible server on port 8080:
+opencode --serve --port 8080
+
+# Keep this terminal running. In MobileUse Agent settings, set:
+#   Base URL: http://localhost:8080/v1
+#   API Key:  (leave blank or type "dummy")
+#   Model:    deepseek-chat
+# Then press Save and test with a simple command.
+''';
+
+  void _showTermuxOpenCodeInstructions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.terminal_rounded, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Self-hosted OpenCode in Termux',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: SelectableText(
+                _termuxOpenCodeInstructions.trim(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Clipboard.setData(
+                ClipboardData(text: _termuxOpenCodeInstructions.trim()),
+              );
+              setState(() {
+                _baseUrlController.text = AiService.opencodeBaseUrl;
+                _apiKeyController.text = 'dummy';
+                _modelController.text = AiService.opencodeDefaultModel;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Copied and prefilled OpenCode settings.'),
+                ),
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Copy & use OpenCode'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -590,12 +687,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   ActionChip(
                     label: const Text('Custom', style: TextStyle(fontSize: 11)),
-                    tooltip: 'Clear fields',
-                    onPressed: () {
-                      _baseUrlController.clear();
-                      _apiKeyController.clear();
-                      _modelController.clear();
-                    },
+                    tooltip: 'Self-hosted OpenCode via Termux',
+                    onPressed: _showTermuxOpenCodeInstructions,
                   ),
                 ],
               ),

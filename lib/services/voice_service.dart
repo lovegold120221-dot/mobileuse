@@ -1,10 +1,12 @@
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'kokoro_tts_service.dart';
 
 class VoiceService {
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _tts = FlutterTts();
+  final KokoroTtsService _kokoro = KokoroTtsService();
   bool _isInitialized = false;
   bool _isListening = false;
 
@@ -30,6 +32,8 @@ class VoiceService {
   Future<void> startListening({
     required Function(String) onResult,
     required Function() onDone,
+    Duration? listenFor,
+    Duration? pauseFor,
   }) async {
     if (!_isInitialized) await init();
     if (!_isInitialized) return;
@@ -47,6 +51,8 @@ class VoiceService {
       listenOptions: stt.SpeechListenOptions(
         listenMode: stt.ListenMode.confirmation,
         partialResults: false,
+        listenFor: listenFor,
+        pauseFor: pauseFor,
       ),
     );
   }
@@ -57,9 +63,11 @@ class VoiceService {
     await _speech.stop();
   }
 
-  /// Speak text aloud
+  /// Speak text aloud. Prefer Kokoro TTS; fall back to on-device TTS.
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
+    final ok = await _kokoro.speak(text);
+    if (ok) return;
     await _tts.speak(text);
   }
 

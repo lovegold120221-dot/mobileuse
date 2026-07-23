@@ -311,7 +311,7 @@ class MainActivity : FlutterActivity() {
                                         .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
                                         .build(),
                                     bufferSize.coerceAtLeast(pcmBytes.size),
-                                    android.media.AudioTrack.MODE_STATIC,
+                                    android.media.AudioTrack.MODE_STREAM,
                                     0
                                 )
                                 audioTrack.write(pcmBytes, 0, pcmBytes.size)
