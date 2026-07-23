@@ -6,9 +6,8 @@ import 'package:http/http.dart' as http;
 
 /// Client for a Kokoro-FastAPI TTS server.
 ///
-/// Expects an OpenAI-compatible `/v1/audio/speech` endpoint that can return
-/// raw 24 kHz mono PCM bytes. When no server is reachable, synthesis fails
-/// so the caller can fall back to on-device TTS.
+/// Expects an OpenAI-compatible `/v1/audio/speech` endpoint that returns
+/// raw 24 kHz mono PCM bytes. There is no fallback to on-device TTS.
 class KokoroTtsService {
   final String baseUrl;
   final String voice;

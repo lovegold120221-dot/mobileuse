@@ -19,6 +19,8 @@ class AiService {
   static const String ollamaDefaultModel = 'gemma3:4b';
   static const String opencodeBaseUrl = 'http://localhost:8080/v1';
   static const String opencodeDefaultModel = 'deepseek-chat';
+  static const String ollamaTermuxBaseUrl = 'http://localhost:11434/v1';
+  static const String ollamaTermuxDefaultModel = 'gemma3:4b';
   static const String geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/';
   static const String geminiDefaultModel = 'gemini-2.0-flash';
 

@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
 import '../services/action_handler.dart';
@@ -41,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _isLoading = false;
   bool _isListening = false;
 
-  // Custom switch state: 'chat' or 'agent'
   String _mode = 'chat';
 
   // Chat Session state tracking
@@ -66,6 +66,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _aiService.init();
     await _notificationService.requestPermission();
     await _voiceService.init();
+    final prefs = await SharedPreferences.getInstance();
+    _liveVoice.voiceName = prefs.getString('gemini_voice_name') ?? 'Aoede';
+    _liveVoice.outputSampleRate =
+        int.tryParse(prefs.getString('gemini_output_sample_rate') ?? '24000') ??
+            24000;
     await _liveVoice.init();
     _liveVoice.onUserText = (text) {
       if (!mounted) return;
@@ -147,7 +152,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final assistantIndex = _messages.length - 1;
 
     try {
-      final isAgent = _mode == 'agent';
+      // The text tab is now dedicated to agent control only.
+      const isAgent = true;
       final stream = _aiService
           .sendMessageStream(text.trim(), isAgentMode: isAgent)
           .timeout(
@@ -553,7 +559,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
-            tooltip: 'New chat',
+            tooltip: 'New session',
             onPressed: _isLoading ? null : _startNewChat,
           ),
           // Settings Action
@@ -731,8 +737,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
 
-              // Custom Input bar
-              _mode == 'agent' ? _buildAgentControls(isDark) : _buildInputBar(isDark),
+              // Chat tab uses the agent command input bar for text-based device control.
+              // Beatrice tab uses the voice orb for voice-to-voice interaction.
+              _mode == 'beatrice'
+                  ? _buildAgentControls(isDark)
+                  : _buildInputBar(isDark),
             ],
           ),
         ],
@@ -812,13 +821,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.add_comment_rounded,
+                          Icons.add_task_rounded,
                           color: Colors.white,
                           size: 16,
                         ),
                         SizedBox(width: 8),
                         Text(
-                          'New Chat',
+                          'New Session',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -841,7 +850,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'CHAT HISTORY',
+                'HISTORY',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
@@ -860,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Center(
                     child: Text(
-                      'No recent chats',
+                      'No recent sessions',
                       style: TextStyle(
                         color: isDark ? Colors.grey[800] : Colors.grey[400],
                         fontSize: 12,
@@ -1072,14 +1081,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             _buildModeButton(
               'chat',
-              'chat/',
-              Icons.chat_bubble_outline_rounded,
+              'Chat',
+              Icons.chat_rounded,
               isDark,
             ),
             _buildModeButton(
-              'agent',
-              'agent',
-              Icons.radio_button_unchecked,
+              'beatrice',
+              'Beatrice',
+              Icons.radio_button_checked,
               isDark,
             ),
           ],
@@ -1165,12 +1174,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       timeGreeting = 'Hello.';
     }
 
-    final suggestions = _mode == 'chat'
+    final suggestions = _mode == 'beatrice'
         ? [
-            'Write a professional email',
-            'Explain quantum computing simply',
-            'Brainstorm mobile app ideas',
-            'Write a poem about robots',
+            'What can you do?',
+            'Open YouTube and search for cats',
+            'Call Mom',
+            'Read my screen',
           ]
         : [
             'Open YouTube and search for cats',
@@ -1244,7 +1253,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   return Container(
                     margin: const EdgeInsets.only(right: 12),
                     child: InkWell(
-                      onTap: () => _sendMessage(suggestion),
+                      onTap: () => _mode == 'beatrice'
+                          ? _sendAgentMessage(suggestion)
+                          : _sendMessage(suggestion),
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
                         padding: const EdgeInsets.symmetric(

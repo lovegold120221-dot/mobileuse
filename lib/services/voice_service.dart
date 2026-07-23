@@ -1,11 +1,10 @@
+import 'dart:developer' as developer;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'kokoro_tts_service.dart';
 
 class VoiceService {
   final stt.SpeechToText _speech = stt.SpeechToText();
-  final FlutterTts _tts = FlutterTts();
   final KokoroTtsService _kokoro = KokoroTtsService();
   bool _isInitialized = false;
   bool _isListening = false;
@@ -20,12 +19,6 @@ class VoiceService {
         _isListening = false;
       },
     );
-
-    // Configure TTS
-    await _tts.setLanguage('en-US');
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
   }
 
   /// Start listening for speech. Returns transcribed text via callback.
@@ -63,21 +56,22 @@ class VoiceService {
     await _speech.stop();
   }
 
-  /// Speak text aloud. Prefer Kokoro TTS; fall back to on-device TTS.
+  /// Speak text aloud using Kokoro TTS only. Never uses on-device/mobile TTS.
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
     final ok = await _kokoro.speak(text);
-    if (ok) return;
-    await _tts.speak(text);
+    if (!ok) {
+      developer.log(
+        'Kokoro TTS unavailable; chat response was not spoken.',
+        name: 'VoiceService',
+      );
+    }
   }
 
   /// Stop speaking
-  Future<void> stopSpeaking() async {
-    await _tts.stop();
-  }
+  Future<void> stopSpeaking() async {}
 
   void dispose() {
     _speech.stop();
-    _tts.stop();
   }
 }

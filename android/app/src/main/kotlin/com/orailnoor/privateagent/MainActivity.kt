@@ -314,6 +314,9 @@ class MainActivity : FlutterActivity() {
                                     android.media.AudioTrack.MODE_STREAM,
                                     0
                                 )
+                                // Reset + flush so overlapping chunks from the same turn do not
+                                // concatenate with stale data from a previous response.
+                                audioTrack.flush()
                                 audioTrack.write(pcmBytes, 0, pcmBytes.size)
                                 audioTrack.play()
                                 result.success(true)

@@ -10,7 +10,6 @@ import '../services/shizuku_service.dart';
 import '../services/screen_automation_service.dart';
 import '../services/telegram_service.dart';
 import 'task_history_screen.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../config/feature_flags.dart';
 
@@ -51,6 +50,18 @@ class _SettingsScreenState extends State<SettingsScreen>
   List<String> _fetchedModels = [];
   bool _isFetchingModels = false;
   Timer? _fetchDebounce;
+  String _geminiVoiceName = 'Aoede';
+  final TextEditingController _geminiSampleRateController =
+      TextEditingController(text: '24000');
+
+  static const List<String> _opencodeZenFreeModels = [
+    'Big Pickle Free',
+    'Laguna S 2.1 Free',
+    'North Mini Code Free',
+    'Nemotron 3 Ultra Free',
+    'DeepSeek V4 Flash Free',
+    'MiMo V2.5 Free',
+  ];
 
   final Map<String, PermissionStatus> _permissions = {};
 
@@ -74,6 +85,8 @@ class _SettingsScreenState extends State<SettingsScreen>
     _useScreenCompression = widget.aiService.useScreenCompression;
     _useSystemPrompt = widget.aiService.useSystemPrompt;
 
+    _loadGeminiVoicePrefs();
+
     // Auto-save listeners
     _apiKeyController.addListener(_autoSave);
     _baseUrlController.addListener(_autoSave);
@@ -88,6 +101,13 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (FeatureFlags.floatingOverlayEnabled) {
       _checkOverlayStatus();
     }
+  }
+
+  Future<void> _loadGeminiVoicePrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    _geminiVoiceName = prefs.getString('gemini_voice_name') ?? 'Aoede';
+    final rate = prefs.getString('gemini_output_sample_rate') ?? '24000';
+    _geminiSampleRateController.text = rate;
   }
 
   Future<void> _checkOverlayStatus() async {
@@ -112,6 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _apiKeyController.removeListener(_onApiConfigChanged);
     _baseUrlController.removeListener(_onApiConfigChanged);
     _fetchDebounce?.cancel();
+    _geminiSampleRateController.dispose();
     _apiKeyController.dispose();
     _baseUrlController.dispose();
     _modelController.dispose();
@@ -178,6 +199,28 @@ class _SettingsScreenState extends State<SettingsScreen>
       useSystemPrompt: _useSystemPrompt,
     );
   }
+
+  bool _isOllamaTermuxBaseUrl() {
+    final base = _baseUrlController.text.trim().toLowerCase();
+    return base.contains('localhost:11434');
+  }
+
+  bool _isOpenCodeBaseUrl() {
+    final base = _baseUrlController.text.trim().toLowerCase();
+    return base.contains('localhost:8080') ||
+        base == AiService.opencodeBaseUrl.toLowerCase();
+  }
+
+  static const List<String> _ollamaTermuxModels = [
+    'gemma3:4b',
+    'gemma3:12b',
+    'llama3.2:3b',
+    'llama3.1:8b',
+    'qwen2.5:7b',
+    'qwen2.5:14b',
+    'phi4',
+    'mistral:7b',
+  ];
 
   void _onApiConfigChanged() {
     _fetchDebounce?.cancel();
@@ -397,45 +440,97 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   static const _termuxOpenCodeInstructions = r'''
-# Run OpenCode as MobileUse Agent's LLM provider inside Termux
+# OpenCode server API is not OpenAI-compatible out of the box.
+# It exposes its own HTTP endpoints on port 4096 by default.
+# If you want OpenCode as an agent backend, run it and adapt the calls below.
+
+# 1. Install the opencode CLI:
+npm install -g opencode
+
+# 2. Run the headless server (default port 4096):
+opencode serve
+
+# Optional: custom port / auth
+#   opencode serve --port 4096 --hostname 127.0.0.1
+#   OPENCODE_SERVER_PASSWORD=mypassword opencode serve
+
+# See the OpenAPI spec at http://localhost:4096/doc
+# You will need a bridge to translate /v1/chat/completions for MobileUse Agent.
+''';
+
+  static const _termuxOllamaInstructions = r'''
+# Run Ollama as MobileUse Agent's LLM provider inside Termux
 
 # 1. Install Termux from F-Droid (not Play Store), then update packages:
 apt update && apt upgrade -y
 
-# 2. Install proot-distro and create a Debian/Ubuntu container:
-apt install proot-distro -y
-proot-distro install debian
+# 2. Install Ollama:
+apt install ollama -y
 
-# 3. Log into the container:
-proot-distro login debian
+# 3. Download a small, capable model:
+ollama pull gemma3:4b
 
-# 4. Inside the container, install Python + pip and OpenCode:
-apt update && apt install python3 python3-pip -y
-pip3 install opencode-interpreter
-
-# 5. Start the OpenAI-compatible server on port 8080:
-opencode --serve --port 8080
+# 4. Start the Ollama server (it exposes OpenAI-compatible endpoints):
+ollama serve
 
 # Keep this terminal running. In MobileUse Agent settings, set:
-#   Base URL: http://localhost:8080/v1
-#   API Key:  (leave blank or type "dummy")
-#   Model:    deepseek-chat
+#   Base URL: http://localhost:11434/v1
+#   API Key:  ollama
+#   Model:    gemma3:4b
 # Then press Save and test with a simple command.
 ''';
 
   void _showTermuxOpenCodeInstructions() {
+    _showTermuxInstructions(
+      title: 'Self-hosted OpenCode in Termux',
+      instructions: _termuxOpenCodeInstructions,
+      onUse: () {
+        setState(() {
+          _baseUrlController.text = AiService.opencodeBaseUrl;
+          _apiKeyController.text = 'dummy';
+          _modelController.text = AiService.opencodeDefaultModel;
+        });
+      },
+      snackBarText: 'Copied and prefilled OpenCode settings.',
+      buttonText: 'Copy & use OpenCode',
+    );
+  }
+
+  void _showTermuxOllamaInstructions() {
+    _showTermuxInstructions(
+      title: 'Self-hosted Ollama in Termux',
+      instructions: _termuxOllamaInstructions,
+      onUse: () {
+        setState(() {
+          _baseUrlController.text = AiService.ollamaTermuxBaseUrl;
+          _apiKeyController.text = 'ollama';
+          _modelController.text = AiService.ollamaTermuxDefaultModel;
+        });
+      },
+      snackBarText: 'Copied and prefilled Ollama settings.',
+      buttonText: 'Copy & use Ollama',
+    );
+  }
+
+  void _showTermuxInstructions({
+    required String title,
+    required String instructions,
+    required VoidCallback onUse,
+    required String snackBarText,
+    required String buttonText,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.terminal_rounded, size: 20),
-            SizedBox(width: 10),
+            const Icon(Icons.terminal_rounded, size: 20),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Self-hosted OpenCode in Termux',
-                style: TextStyle(fontSize: 16),
+                title,
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ],
@@ -453,7 +548,7 @@ opencode --serve --port 8080
                 ),
               ),
               child: SelectableText(
-                _termuxOpenCodeInstructions.trim(),
+                instructions.trim(),
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,
@@ -470,25 +565,81 @@ opencode --serve --port 8080
           ),
           FilledButton(
             onPressed: () {
-              Clipboard.setData(
-                ClipboardData(text: _termuxOpenCodeInstructions.trim()),
-              );
-              setState(() {
-                _baseUrlController.text = AiService.opencodeBaseUrl;
-                _apiKeyController.text = 'dummy';
-                _modelController.text = AiService.opencodeDefaultModel;
-              });
+              Clipboard.setData(ClipboardData(text: instructions.trim()));
+              onUse();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Copied and prefilled OpenCode settings.'),
-                ),
+                SnackBar(content: Text(snackBarText)),
               );
               Navigator.pop(context);
             },
-            child: const Text('Copy & use OpenCode'),
+            child: Text(buttonText),
           ),
         ],
       ),
+    );
+  }
+
+
+  Widget _buildLocalModelSelector({
+    required String label,
+    required String hint,
+    required List<String> models,
+  }) {
+    final isCustom = !models.contains(_modelController.text.trim());
+    final currentValue = isCustom ? '__custom__' : _modelController.text.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: currentValue.isEmpty ? null : currentValue,
+          decoration: _buildInputDecoration(
+            labelText: label,
+            hintText: hint,
+            prefixIcon: const Icon(Icons.lens, size: 18),
+          ),
+          items: [
+            ...models.map(
+              (model) => DropdownMenuItem(
+                value: model,
+                child: Text(
+                  model,
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const DropdownMenuItem(
+              value: '__custom__',
+              child: Text(
+                'Custom / Paste model name',
+                style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+            ),
+          ],
+          onChanged: (value) {
+            if (value == null) return;
+            if (value == '__custom__') {
+              setState(() {});
+            } else {
+              setState(() {
+                _modelController.text = value;
+              });
+            }
+          },
+        ),
+        if (isCustom) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: _modelController,
+            decoration: _buildInputDecoration(
+              labelText: 'Custom Model Name',
+              hintText: 'my-custom-model',
+              prefixIcon: const Icon(Icons.edit_note_rounded, size: 18),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -639,12 +790,12 @@ opencode --serve --port 8080
                     },
                   ),
                   ActionChip(
-                    label: const Text('Ollama', style: TextStyle(fontSize: 11)),
-                    tooltip: 'Local Ollama on Termux',
-                    onPressed: () {
-                      _baseUrlController.text = AiService.ollamaBaseUrl;
-                      _modelController.text = AiService.ollamaDefaultModel;
-                    },
+                    label: const Text(
+                      'Ollama Termux',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    tooltip: 'Self-hosted Ollama inside Termux',
+                    onPressed: _showTermuxOllamaInstructions,
                   ),
                   ActionChip(
                     label: const Text('OpenCode', style: TextStyle(fontSize: 11)),
@@ -693,28 +844,42 @@ opencode --serve --port 8080
                 ],
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _modelController,
-                decoration: _buildInputDecoration(
-                  labelText: 'Model',
-                  hintText: 'deepseek-chat',
-                  prefixIcon: const Icon(Icons.lens, size: 18),
-                  suffixIcon: _isFetchingModels
-                      ? const Padding(
-                          padding: EdgeInsets.all(14),
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.refresh_rounded, size: 18),
-                          tooltip: 'Fetch models',
-                          onPressed: _fetchModels,
-                        ),
+              if (_isOllamaTermuxBaseUrl()) ...[
+                _buildLocalModelSelector(
+                  label: 'Model',
+                  hint: 'Select an Ollama model',
+                  models: _ollamaTermuxModels,
                 ),
-              ),
+              ] else if (_isOpenCodeBaseUrl()) ...[
+                _buildLocalModelSelector(
+                  label: 'Model',
+                  hint: 'Select an OpenCode Zen model',
+                  models: _opencodeZenFreeModels,
+                ),
+              ] else ...[
+                TextField(
+                  controller: _modelController,
+                  decoration: _buildInputDecoration(
+                    labelText: 'Model',
+                    hintText: 'deepseek-chat',
+                    prefixIcon: const Icon(Icons.lens, size: 18),
+                    suffixIcon: _isFetchingModels
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            tooltip: 'Fetch models',
+                            onPressed: _fetchModels,
+                          ),
+                  ),
+                ),
+              ],
               if (_fetchedModels.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 SizedBox(
@@ -917,7 +1082,98 @@ opencode --serve --port 8080
             ],
           ),
 
-          // 5. Telegram Remote Access Card
+          // 5. Gemini Voice Agent Card
+          _buildSettingsCard(
+            icon: Icons.record_voice_over_outlined,
+            title: 'Gemini Voice Agent',
+            subtitle: 'Voice configuration for Beatrice (Gemini Live API)',
+            isDark: isDark,
+            children: [
+              const Text(
+                'Voice',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _geminiVoiceName,
+                decoration: _buildInputDecoration(
+                  labelText: 'Select Voice',
+                  hintText: 'Choose a voice',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Aoede', child: Text('Aoede (Female)')),
+                  DropdownMenuItem(value: 'Kore', child: Text('Kore (Female)')),
+                  DropdownMenuItem(value: 'Charon', child: Text('Charon (Male)')),
+                  DropdownMenuItem(value: 'Puck', child: Text('Puck (Male)')),
+                  DropdownMenuItem(value: 'Fenrir', child: Text('Fenrir (Male)')),
+                  DropdownMenuItem(value: 'Orus', child: Text('Orus (Male)')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _geminiVoiceName = val);
+                    SharedPreferences.getInstance().then((prefs) {
+                      prefs.setString('gemini_voice_name', val);
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Output Sample Rate (Hz)',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _geminiSampleRateController,
+                keyboardType: TextInputType.number,
+                decoration: _buildInputDecoration(
+                  labelText: 'Sample Rate',
+                  hintText: '24000',
+                  prefixIcon: const Icon(Icons.tune_outlined, size: 18),
+                ),
+                onChanged: (val) {
+                  SharedPreferences.getInstance().then((prefs) {
+                    prefs.setString('gemini_output_sample_rate', val);
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Quick Presets',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildVoicePresetChip(
+                    icon: Icons.sentiment_satisfied,
+                    label: 'Friendly',
+                    voice: 'Aoede',
+                    sampleRate: 27000,
+                    isDark: isDark,
+                  ),
+                  _buildVoicePresetChip(
+                    icon: Icons.business_center,
+                    label: 'Professional',
+                    voice: 'Charon',
+                    sampleRate: 24000,
+                    isDark: isDark,
+                  ),
+                  _buildVoicePresetChip(
+                    icon: Icons.bedtime,
+                    label: 'Tired',
+                    voice: 'Aoede',
+                    sampleRate: 16000,
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // 6. Telegram Remote Access Card
           _buildSettingsCard(
             icon: Icons.send_and_archive_outlined,
             title: 'Telegram Remote Access',
@@ -1080,76 +1336,32 @@ opencode --serve --port 8080
     return list;
   }
 
-  Widget _buildShizukuCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  widget.shizukuService.isAvailable
-                      ? Icons.link
-                      : Icons.link_off,
-                  color: widget.shizukuService.isAvailable
-                      ? Colors.green
-                      : Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.shizukuService.isAvailable
-                      ? 'Shizuku is running'
-                      : 'Shizuku not detected',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: widget.shizukuService.isAvailable
-                        ? Colors.green
-                        : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (!widget.shizukuService.isAvailable) ...[
-              const Text(
-                '1. Install Shizuku from Play Store\n'
-                '2. Open Shizuku and start it via Wireless Debugging\n'
-                '3. Come back here and tap "Check Again"',
-                style: TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () async {
-                  await widget.shizukuService.checkAvailability();
-                  if (mounted) setState(() {});
-                },
-                child: const Text('Check Again'),
-              ),
-            ] else if (!widget.shizukuService.hasPermission) ...[
-              OutlinedButton(
-                onPressed: () async {
-                  await widget.shizukuService.requestPermission();
-                  if (mounted) setState(() {});
-                },
-                child: const Text('Grant Shizuku Permission'),
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Permission granted — ADB commands available',
-                    style: TextStyle(color: Colors.green[700], fontSize: 13),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
+  Widget _buildVoicePresetChip({
+    required IconData icon,
+    required String label,
+    required String voice,
+    required int sampleRate,
+    required bool isDark,
+  }) {
+    return ActionChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      onPressed: () {
+        setState(() {
+          _geminiVoiceName = voice;
+          _geminiSampleRateController.text = sampleRate.toString();
+        });
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setString('gemini_voice_name', voice);
+          prefs.setString('gemini_output_sample_rate', sampleRate.toString());
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Preset "$label": $voice @ ${sampleRate}Hz'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
     );
   }
 
