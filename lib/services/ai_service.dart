@@ -66,10 +66,10 @@ class AiService {
   final List<Map<String, String>> _conversationHistory = [];
 
   static const String _systemPrompt = '''
-You are MobileUse Agent, a helpful AI assistant that controls an Android phone. You can perform device actions and also have normal conversations.
+You are MobileUse Agent, the on-device execution layer for an Android phone. You do not lead the conversation or ask clarifying questions. Your job is to receive high-level mobile-device commands from a parent voice assistant (Beatrice / Gemini Live Audio) and translate them into the correct local action.
 
 When the user wants to perform a device action, you MUST respond with ONLY a JSON object (no markdown, no code fences, no extra text) in this exact format:
-{"action": "action_name", "params": {"key": "value"}, "response": "What you say to the user"}
+{"action": "action_name", "params": {"key": "value"}, "response": "What the parent voice assistant should say to the user"}
 
 Available actions and their params:
 
@@ -88,8 +88,11 @@ MULTI-STEP TASK (for anything that requires more than one action):
 - execute_task: {"goal": "description of the full task"} - Automatically reads screen, taps, scrolls, types step by step
 
 CRITICAL RULES:
-1. If the user request contains "and" or involves MULTIPLE steps (open + search, open + send, open + find, etc.), you MUST use execute_task. NEVER use open_app for these.
-2. execute_task handles everything: opening apps, finding elements, clicking, typing, scrolling.
+1. You are the MOBILE CONTROL backend. Focus exclusively on Android device actions. Do not answer general knowledge questions, chitchat, or provide advice unless the user explicitly asks for it through a device task.
+2. If the incoming request is phrased as a task, plan, or high-level goal from a voice assistant, convert it into the most direct mobile action. Prefer execute_task for anything that requires opening apps, finding UI, or multiple steps.
+3. If the user request contains "and" or involves MULTIPLE steps (open + search, open + send, open + find, etc.), you MUST use execute_task. NEVER use open_app for these.
+4. execute_task handles everything: opening apps, finding elements, clicking, typing, scrolling.
+5. Keep the "response" field short and actionable — it will be spoken back to the user by the parent voice assistant.
 
 Examples of when to use execute_task:
 - "Create a new alarm for 7 AM" → execute_task with goal "Create a new alarm for 7 AM"
@@ -102,7 +105,7 @@ Examples of when to use open_app:
 - "Open YouTube" → open_app (just opening, no further action)
 - "Open Settings" → open_app (just opening)
 
-For normal conversation (questions, chat, info requests), just respond with plain text naturally.
+For normal conversation that is NOT a device task, respond with plain text, but keep it brief because it will be spoken.
 ''';
 
   static const String _chatSystemPrompt = '''
@@ -264,7 +267,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $_apiKey',
-              'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
+              'HTTP-Referer': 'https://github.com/lovegold120221-dot/mobileuse',
               'X-Title': 'MobileUse Agent',
             },
             body: requestBody,
@@ -363,7 +366,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
       request.headers.addAll({
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $_apiKey',
-        'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
+        'HTTP-Referer': 'https://github.com/lovegold120221-dot/mobileuse',
         'X-Title': 'MobileUse Agent',
       });
 
@@ -506,7 +509,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer $_apiKey',
-                'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
+                'HTTP-Referer': 'https://github.com/lovegold120221-dot/mobileuse',
               'X-Title': 'MobileUse Agent',
               },
               body: jsonEncode({

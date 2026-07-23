@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
 import '../services/action_handler.dart';
 import '../services/voice_service.dart';
+import '../services/gemini_live_service.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/voice_orb.dart';
 import '../services/telegram_service.dart';
 import '../services/chat_history_service.dart';
 import '../services/notification_service.dart';
@@ -30,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final AiService _aiService = AiService();
   final ActionHandler _actionHandler = ActionHandler();
   final VoiceService _voiceService = VoiceService();
+  final GeminiLiveService _liveVoice = GeminiLiveService();
   final NotificationService _notificationService = NotificationService();
   late final TelegramService _telegramService;
 
@@ -62,6 +66,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _aiService.init();
     await _notificationService.requestPermission();
     await _voiceService.init();
+    await _liveVoice.init();
+    _liveVoice.onUserText = (text) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(ChatMessage(role: 'user', content: text));
+      });
+      _scrollToBottom();
+    };
+    _liveVoice.onResponseText = (text) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(ChatMessage(role: 'assistant', content: text));
+      });
+      _scrollToBottom();
+      _saveSession();
+    };
+    _liveVoice.onError = (message) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(ChatMessage(role: 'assistant', content: '⚠️ $message'));
+      });
+      _scrollToBottom();
+      _saveSession();
+    };
+    _liveVoice.stateStream.listen((state) {
+      if (!mounted) return;
+      setState(() {});
+    });
     await _telegramService.init();
     await _actionHandler.shizuku.checkAvailability();
 
@@ -491,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             children: [
               TextSpan(
-                text: 'Private',
+                text: 'MobileUse',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   color: Theme.of(context).colorScheme.primary,
@@ -499,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               const TextSpan(
-                text: 'Agent',
+                text: ' Agent',
                 style: TextStyle(
                   fontWeight: FontWeight.w400,
                   letterSpacing: -0.5,
@@ -699,7 +731,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
 
               // Custom Input bar
-              _buildInputBar(isDark),
+              _mode == 'agent' ? _buildVoiceOrb(isDark) : _buildInputBar(isDark),
             ],
           ),
         ],
@@ -1045,8 +1077,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             _buildModeButton(
               'agent',
-              'beatrice',
-              Icons.smart_toy_outlined,
+              'agent',
+              Icons.radio_button_unchecked,
               isDark,
             ),
           ],
@@ -1263,9 +1295,61 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildVoiceOrb(bool isDark) {
+    final isActive = _liveVoice.state != LiveVoiceState.idle;
+    final isListening = _liveVoice.state == LiveVoiceState.listening;
+    final isSpeaking = _liveVoice.state == LiveVoiceState.speaking;
+
+    String statusText;
+    if (!isActive) {
+      statusText = 'Tap to start voice';
+    } else if (isListening) {
+      statusText = 'Listening...';
+    } else if (isSpeaking) {
+      statusText = 'Speaking...';
+    } else {
+      statusText = 'Connecting...';
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 49),
+      decoration: const BoxDecoration(color: Colors.transparent),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: VoiceOrb(
+              state: _liveVoice.state,
+              isActive: isActive,
+              onTap: () async {
+                if (isActive) {
+                  _liveVoice.stop();
+                } else {
+                  final mic = await Permission.microphone.request();
+                  if (mic.isGranted) {
+                    _liveVoice.start();
+                  }
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputBar(bool isDark) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 44),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 49),
       decoration: const BoxDecoration(color: Colors.transparent),
       child: Row(
         children: [

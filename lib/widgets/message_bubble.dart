@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/chat_message.dart';
 
@@ -135,6 +136,41 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ),
               ),
+            // Copy button
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(
+                        ClipboardData(text: message.content),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Copied'),
+                          duration: const Duration(seconds: 1),
+                          behavior: SnackBarBehavior.floating,
+                          margin: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).size.height - 100,
+                            left: 20,
+                            right: 20,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Icon(
+                      Icons.copy_rounded,
+                      size: 13,
+                      color: isUser
+                          ? Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.5)
+                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             // Timestamp
             const SizedBox(height: 4),
             Text(

@@ -13,6 +13,9 @@ import android.view.WindowManager
 import android.view.View
 import android.widget.Button
 import android.net.Uri
+import android.media.AudioRecord
+import android.media.AudioFormat
+import android.media.MediaRecorder
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.privateagent/accessibility"
@@ -41,10 +44,27 @@ class MainActivity : FlutterActivity() {
             }
         )
 
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, AUDIO_STREAM_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    audioEventSink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    audioEventSink = null
+                }
+            }
+        )
+
         registerAccessibilityChannel(flutterEngine, this)
     }
 
     companion object {
+        private val AUDIO_STREAM_CHANNEL = "com.privateagent/audio_stream"
+        private var audioEventSink: EventChannel.EventSink? = null
+        private var audioRecord: AudioRecord? = null
+        @Volatile private var isRecording = false
+
         fun registerAccessibilityChannel(flutterEngine: FlutterEngine, context: android.content.Context) {
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.privateagent/accessibility")
                 .setMethodCallHandler { call, result ->
@@ -74,7 +94,6 @@ class MainActivity : FlutterActivity() {
                         }
 
                         "showMacroOverlay" -> {
-                            // Macro overlay requires an Activity context, so we just ignore or return error if called from background
                             result.error("NOT_SUPPORTED", "Macro overlay not supported from background", null)
                         }
 
@@ -222,6 +241,85 @@ class MainActivity : FlutterActivity() {
                                 result.error("SERVICE_NOT_RUNNING", "Accessibility service is not running", null)
                             } else {
                                 result.success(service.getCurrentPackage())
+                            }
+                        }
+
+                        "startRecording" -> {
+                            val sampleRate = call.argument<Int>("sampleRate") ?: 16000
+                            try {
+                                val bufferSize = AudioRecord.getMinBufferSize(
+                                    sampleRate,
+                                    AudioFormat.CHANNEL_IN_MONO,
+                                    AudioFormat.ENCODING_PCM_16BIT
+                                )
+                                audioRecord = AudioRecord(
+                                    MediaRecorder.AudioSource.MIC,
+                                    sampleRate,
+                                    AudioFormat.CHANNEL_IN_MONO,
+                                    AudioFormat.ENCODING_PCM_16BIT,
+                                    bufferSize * 2
+                                )
+                                audioRecord?.startRecording()
+                                isRecording = true
+                                val buf = ByteArray(bufferSize)
+                                Thread {
+                                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+                                    while (isRecording) {
+                                        val read = audioRecord?.read(buf, 0, buf.size) ?: -1
+                                        if (read > 0) {
+                                            val chunk = java.util.Arrays.copyOf(buf, read)
+                                            val b64 = android.util.Base64.encodeToString(chunk, android.util.Base64.NO_WRAP)
+                                            audioEventSink?.success(b64)
+                                        }
+                                    }
+                                }.start()
+                                result.success(true)
+                            } catch (e: Exception) {
+                                android.util.Log.e("MobileUseAgent", "startRecording error: ${e.message}")
+                                result.error("RECORD_ERROR", e.message, null)
+                            }
+                        }
+
+                        "stopRecording" -> {
+                            isRecording = false
+                            try {
+                                audioRecord?.stop()
+                            } catch (_: Exception) {}
+                            audioRecord?.release()
+                            audioRecord = null
+                            result.success(true)
+                        }
+
+                        "playPcmAudio" -> {
+                            val base64Data = call.argument<String>("data") ?: ""
+                            try {
+                                val pcmBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                                val sampleRate = call.argument<Int>("sampleRate") ?: 24000
+                                val bufferSize = android.media.AudioTrack.getMinBufferSize(
+                                    sampleRate,
+                                    android.media.AudioFormat.CHANNEL_OUT_MONO,
+                                    android.media.AudioFormat.ENCODING_PCM_16BIT
+                                )
+                                val audioTrack = android.media.AudioTrack(
+                                    android.media.AudioAttributes.Builder()
+                                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                                        .build(),
+                                    android.media.AudioFormat.Builder()
+                                        .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                                        .setSampleRate(sampleRate)
+                                        .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
+                                        .build(),
+                                    bufferSize.coerceAtLeast(pcmBytes.size),
+                                    android.media.AudioTrack.MODE_STATIC,
+                                    0
+                                )
+                                audioTrack.write(pcmBytes, 0, pcmBytes.size)
+                                audioTrack.play()
+                                result.success(true)
+                            } catch (e: Exception) {
+                                android.util.Log.e("MobileUseAgent", "playPcmAudio error: ${e.message}")
+                                result.error("AUDIO_ERROR", e.message, null)
                             }
                         }
 

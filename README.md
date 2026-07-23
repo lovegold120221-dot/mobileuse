@@ -23,7 +23,7 @@ The system operates on a continuous feedback loop:
 
 ## Installation
 
-Download the latest APK directly from the [Releases Page](https://github.com/orailnoor/private-agent/releases).
+Download the latest APK directly from the [Releases Page](https://github.com/lovegold120221-dot/mobileuse/releases).
 
 Choose `app-universal-release.apk` when it is available. It supports ARM64,
 32-bit ARM, and x86_64 devices in one package. If a release only provides split
