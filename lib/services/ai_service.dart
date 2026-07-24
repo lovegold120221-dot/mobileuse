@@ -211,6 +211,21 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
     _conversationHistory.clear();
   }
 
+  void removeLastMessage() {
+    if (_conversationHistory.isNotEmpty) {
+      _conversationHistory.removeLast();
+    }
+  }
+
+  void replaceLastAssistantMessage(String content) {
+    for (int i = _conversationHistory.length - 1; i >= 0; i--) {
+      if (_conversationHistory[i]['role'] == 'assistant') {
+        _conversationHistory[i] = {'role': 'assistant', 'content': content};
+        return;
+      }
+    }
+  }
+
   void addHistoryMessage(String role, String content) {
     _conversationHistory.add({'role': role, 'content': content});
     if (_conversationHistory.length > 20) {

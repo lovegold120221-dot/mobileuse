@@ -188,7 +188,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final action = _aiService.parseAction(accumulated);
 
       if (action != null) {
-        // If it's an action, we remove the raw JSON message from display
+        // Remove raw JSON from both display and AI conversation history so
+        // it doesn't pollute future API calls with stale action tokens.
+        _aiService.removeLastMessage();
         setState(() {
           _messages.removeAt(assistantIndex);
         });
@@ -213,17 +215,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
         );
 
+        // Build clean result text — avoid showing raw `execute_task` JSON
+        // in history. Instead record what actually happened.
+        final resultText = result.success
+            ? (action.response.isNotEmpty
+                  ? action.response
+                  : (result.details ?? 'Done.'))
+            : (action.response.isNotEmpty
+                  ? '${action.response}\n\n⚠️ ${result.details}'
+                  : '⚠️ ${result.details}');
+        _aiService.addHistoryMessage('assistant', resultText);
+
         setState(() {
           _messages.add(
             ChatMessage(
               role: 'assistant',
-              content: result.success
-                  ? (action.response.isNotEmpty
-                        ? action.response
-                        : (result.details ?? 'Done.'))
-                  : (action.response.isNotEmpty
-                        ? '${action.response}\n\n⚠️ ${result.details}'
-                        : '⚠️ ${result.details}'),
+              content: resultText,
               actionResult: result,
             ),
           );
@@ -379,8 +386,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       _aiService.clearHistory();
       for (final m in _messages) {
-        if (m.actionResult != null) continue;
-        _aiService.addHistoryMessage(m.role, m.content);
+        final content = m.actionResult != null
+            ? 'Executed ${m.actionResult!.actionType}: ${m.content}'
+            : m.content;
+        _aiService.addHistoryMessage(m.role, content);
       }
     });
     _scrollToBottom();
